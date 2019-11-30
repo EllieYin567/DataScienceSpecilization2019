@@ -1,0 +1,148 @@
+---
+title: "ML_Course_project"
+author: "EllieYin"
+date: "11/29/2019"
+output: 
+  html_document:
+    toc: true 
+    toc_depth: 2
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(caret, ggplot2, data.table,corrplot,rattle)
+```
+
+# Introduction
+
+This project utilizes the Weight Lifting Exercises dataset to investigate "how (well)" an activity was performed by the wearer. 
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). Data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants will be used for training. 
+
+# Set up 
+## Import the datasets
+
+```{r prep_data}
+# Download and read the training and test data
+training <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+test <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+
+# Summarize the number of observations in each class
+training$classe <- as.factor(training$classe)
+table(training$classe)
+
+```
+
+```{r predictor_selection}
+# Among the 160 variables, check how many of them are "near zero" variance predictors
+nav <- nearZeroVar(training, saveMetrics = TRUE)
+# Remove the ones "near zero"
+training <- training[, !nav$nzv]
+
+# Also, remove the first 5 columns
+training <- training[, -c(1:5)]
+
+# remove columns with NA value greater than 90% of the samples
+percent_na <- apply(training,2, function(x)sum(is.na(x))/nrow(training))
+remove_list <- names(percent_na[percent_na>0.9])
+
+training <- training[, !colnames(training) %in% remove_list]
+
+# Do the same cleaning for test data
+test <- test[, !nav$nzv]
+test <- test[, -c(1:5)]
+test <- test[, !colnames(test) %in% remove_list]
+```
+
+- There are total `r ncol(training)` predictors, and `r nrow(nav[nav$nzv=="TRUE",])` predictors are near zero predictors. Those near zero predictors were removed from further analysis. 
+- First 5 columns were also removed from training because these are host and time information, which could not help with the prediction
+- Predictors with over 90% NAs were also removed and this resulted in `r ncol(training)` predictors. 
+
+# Training 
+
+Random forest, decision tree and boosting with trees will be tested and compared. 
+
+First, perform partition - split the training data into training and validation. We will use the training data to train the model and use the validation data to choose the best performed model and calcualte the out of sample error. 
+
+```{r part}
+# Partition the dataset into training and validation
+inTrain<-createDataPartition(y=training$classe, p=0.7, list=FALSE)
+training_par<-training[inTrain,]
+validation_par<-training[-inTrain,]
+
+```
+
+Check the correlation relationship between predictors.
+
+```{r correlation}
+# Perform correlation between params
+M <- abs(cor(training[,-54]))
+diag(M) <- 0 #set the self -correlation value to 0
+# List the ones with correlation coefficient over 0.8
+which(M>0.8, arr.ind =T)
+```
+
+
+## Random forest
+
+```{r random_forest}
+# we will use 5 fold cross validation 
+trControl <- trainControl(method="cv", number=5)
+# Model fit
+set.seed(1)
+fit1 <- train(classe ~., data = training_par, method = "rf", trControl=trControl)
+# Check the accuracy
+con1 <- confusionMatrix(validation_par$classe, predict(fit1, validation_par))
+con1
+```
+
+- Random forest modeling showed an accuracy of `r con1$overall[1]`.
+
+## Decision trees
+
+```{r decision_tree}
+#training
+set.seed(2)
+fit2 <- train(classe ~ ., method = "rpart", data=training_par, trControl=trControl)
+fancyRpartPlot(fit2$finalModel)
+
+#predict
+con2 <- confusionMatrix(validation_par$classe, predict(fit2, validation_par))
+con2
+```
+
+- Decision trees modeling showed an accuracy of `r con2$overall[1]`.
+
+## Boosting
+
+```{r boosting}
+set.seed(3)
+#training
+fit3 <- train(classe ~ ., method = "gbm", data=training_par, trControl=trControl)
+
+#predict
+con3 <- confusionMatrix(validation_par$classe, predict(fit3, validation_par))
+
+```
+
+- Boosting modeling showed an accuracy of `r con3$overall[1]`.
+
+## Compare three models
+
+```{r compare}
+accuracy <- data.frame(rbind(c("random_forest",con1$overall[1]), c("decision_trees", con2$overall[1]), c("boosting",con3$overall[1])))
+accuracy$Accuracy <- as.numeric(as.character(accuracy$Accuracy))
+ggplot(accuracy, aes(x=V1, y=round(Accuracy, digits = 2), fill=V1)) + geom_bar(stat="identity") + ylab("Accuracy") + theme(legend.position = "none",axis.title.x=element_blank())
+
+```
+
+- Random forest gave the best accuracy and will be used to predict the test data.
+
+# Prediction
+
+Use the random forest model to predict the test data. 
+
+```{r predict}
+predict(fit1, test)
+```
+
