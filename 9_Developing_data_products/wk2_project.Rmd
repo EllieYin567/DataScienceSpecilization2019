@@ -1,0 +1,73 @@
+---
+title: "Wk2_project1_Coronavirus outbreak in US"
+author: "EllieYin"
+date: "3/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(leaflet)
+library(rvest)
+library(data.table)
+
+```
+
+# Introduction
+
+This html is created to show the distribution of Coronavirus outbreak in US. Data is collected from this link as of March 8th, 2020 <https://en.wikipedia.org/wiki/2020_coronavirus_outbreak_in_the_United_States>.
+
+# Acquire data
+
+```{r data_import}
+# Get the infected data first
+url <- "https://en.wikipedia.org/wiki/2020_coronavirus_outbreak_in_the_United_States"
+population <- url %>%
+  xml2::read_html() %>%
+  html_nodes("table")%>%
+        .[3] %>% # this is the table for infected number per state
+        html_table(fill = TRUE) %>%
+        data.frame() %>% 
+        setDT()
+
+# Get the location data then 
+url <- "https://developers.google.com/public-data/docs/canonical/states_csv"
+location <- url %>%
+  xml2::read_html() %>%
+  html_nodes("table") %>% 
+        html_table(fill = TRUE) %>%
+        data.frame() %>% 
+        setDT()
+
+
+```
+
+# Data cleaning 
+
+```{r clean}
+# Get the total number per each state 
+infect_dt <- data.table(t(population[Date=="Total"]))[2:36] %>% setnames(., c("V1","V2"), c("cases","state"))
+
+# Add the lat and lng
+infect_dt <- merge(infect_dt, location, by = "state", all.x = T) %>% setnames(., c("latitude", "longitude"), c("lat","lng"))
+
+```
+
+# Data plot 
+
+The plot shows the total infected cases per state as of March 8th, 2020. 
+
+```{r map}
+infect_dt %>%
+  leaflet() %>%
+  addTiles() %>%
+  addCircles(weight = 1, radius = as.numeric(infect_dt$cases)*5000) %>%
+  addMarkers(popup = paste0(infect_dt$cases, " ", infect_dt$state))
+
+```
+
+# Session information 
+
+```{r wrap_up}
+sessionInfo()
+```
