@@ -1,0 +1,61 @@
+A tool for next word prediction
+========================================================
+author: Ellie Yin
+date: `r Sys.Date()`
+width: 1200
+height: 1200
+
+Background
+========================================================
+
+Natural language processing is an emerging field and has applications in various scenarios, such as translation, speech recognition, text classification, *next word prediction* etc. 
+
+In this Capstone project, the goal is to create a tool to predict the possible next word when users type in certain word. 
+
+The data are provided by Swiftkey in multiple languages, and we use english for this task. The data are orignally from 
+- News (1010242 rows, 257 Mb)
+- Blogs (899288 rows, 255 Mb)
+- Twitter (2360148 rows, 318 Mb)
+
+Prediction strategy - N-gram model
+========================================================
+Because of the big size of the data, we only use a subset for this task (10%). The prediction step follows:
+- Subset 10% of each of the three files and create a corpus
+- Clean up the corpus by removing symbols, punctuation, numbers and anything which is not english; Corpus also went through stemming. I used the "quanteda" package in R
+- For this project, n-gram model is used for next word prediction. Thus, 1-, 2- and 3-gram models are generated from the corpus
+
+Some exploration of the text based on 1-, 2- and 3-gram models (Wordcloud for the most frequent grams)
+
+<img src="1_gram_wordcloud.png"; style="max-width:350px;float:left;">
+<img src="2_gram_wordcloud.png"; style="max-width:350px;float:center;">
+<img src="3_gram_wordcloud.png"; style="max-width:350px;float:center;">
+
+
+
+Prediction strategy - Training and evaluation 
+========================================================
+When the N-gram models are built, 
+- In order to account for possible unseen terms, Good-turing was applied to smooth the probability. Other methods include Laplace's law, Lidstone’s law etc)
+- Katz's Backoff model was also used for prediction, in case the words are not found in the 3-gram model, the 2-gram model will be thus examined until a match is found. (<https://en.wikipedia.org/wiki/Katz%27s_back-off_model>)
+
+Evaluations
+- A subset of the remaining text were used for evaluation 
+- Words except the last one were provided to the function and top one and three words were predicted. These words were then compared to the last word in the evaluation set and accuracy were calculated. 
+- The current model achieved 10% and 12.5% accuracy for top one and top three prediction!
+
+
+Shiny app and next steps 
+========================================================
+A Shiny app is created to deploy the function (https://ellieyin037.shinyapps.io/word_prediction/)
+- Users could type in the words, and do submit
+- The app will output a plot with the top 3 predicted next word with their corresponding probability
+- It is also possible that the app could not predict any word based on the current model
+
+Next steps:
+- Instead of using the current discounting and back off model, linear interpolation may also help to improve the performance 
+- Other back off model: such as Kneser-Ney smoothing and stupid back off model developed by Google for large web data
+- Other strategies for word prediction could be used: such as deep learning techniques (e.g. word2vec)
+
+
+
+
